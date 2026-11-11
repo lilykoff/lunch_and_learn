@@ -1323,5 +1323,14 @@ pfr_fit =
 
 </div> 
 
-Come talk to me if you want to learn more! 
+
+
+## Resources 
+
+$$
+$$
+
++ [functionaldataanalysis.org](https://functionaldataanalysis.org/index.html)
++ [FDA book link](https://functionaldataanalysis.org/index.html)
++ Email me [koffman@virginia.edu](koffman@virginia.edu) or stop by SDS 343
 
