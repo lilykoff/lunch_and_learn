@@ -24,7 +24,7 @@ format:
     html-math-method: mathjax
     embed-resources: true
     # logo: figs/color-screen.png
-    # footer: tinyurl.com/uva-stats
+    footer: tinyurl.com/ll-2026
 code: 
   echo: false
   cache: true 
@@ -1324,6 +1324,14 @@ pfr_fit =
 </div> 
 
 
+## Conclusion
+
+$$ 
+$$
+
++ We can use scalar on function regression to flexibly estimate relationship between functional predictor (PA) and outcome (BMI)
++ What if outcome is function? (e.g., how does gender impact PA profile) Function on scalar regression
++ And more! 
 
 ## Resources 
 
@@ -1331,6 +1339,6 @@ $$
 $$
 
 + [functionaldataanalysis.org](https://functionaldataanalysis.org/index.html)
-+ [FDA book link](https://functionaldataanalysis.org/index.html)
++ [FDA book link](https://www.taylorfrancis.com/books/mono/10.1201/9781003278726/functional-data-analysis-ciprian-crainiceanu-jeff-goldsmith-andrew-leroux-erjia-cui)
 + Email me [koffman@virginia.edu](koffman@virginia.edu) or stop by SDS 343
 
