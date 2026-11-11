@@ -56,6 +56,7 @@ library(refund)
 library(gganimate)
 library(ggimage)
 library(cowplot)
+library(splines)
 library(plotly)
 library(tidyfun)
 options(digits.secs = 3)
@@ -974,3 +975,353 @@ Need to minimize:
 $$
 \min_{\beta_0, \beta_1(s)}\sum_{i=1}^n\Big\{Y_i - \beta_0 - \int_S\beta_1(s)X_i(s)\,ds\Big\}^2
 $$
+How can we do this? 
+---
+
+### Parametric estimation 
+
+**Basic idea**: expand coefficient using a basis expansion, which allows us to reframe problem as one of multiple linear regression 
+
+This involves some math 
+
+---
+
+### Parametric estimation 
+
+Expand coefficient function using a low dimensional basis expansion
+
+$$
+\beta_1(s) = \sum_{k=1}^K \beta_{1k}B_k(s)
+$$
+
+Collection of basis functions: $B_1(s), \dots, B_K(s)$ 
+
+---
+
+### Parametric estimation 
+
+What are these $B_k$?
+
+One example: simple quadratic basis 
+
+$$
+\begin{cases} B_1(s) = 1 \\
+B_2(s) = s \\
+B_3(s) = s^2
+\end{cases}
+$$
+
+```{r splines1}
+s  = 1:1440
+u  = s / 1440                      # rescaled time in (0, 1]
+B  = cbind(B1 = 1, B2 = u, B3 = u^2)
+X  = nh_df$mims_mat                # n x 1440
+
+time_x = scale_x_continuous(breaks = seq(0, 1440, 360),
+                             labels = c("00:00","06:00","12:00","18:00","24:00"))
+
+bdf = as_tibble(B) |> mutate(s = s) |>
+  pivot_longer(-s, names_to = "k", values_to = "B")
+
+ggplot(bdf, aes(s, B, color = k)) +
+  geom_line(linewidth = 1) + time_x +
+  scale_color_discrete(labels = c("1", "s", expression(s^2))) +
+  labs(x = "Time of Day", y = expression(B[k](s)), color = NULL) +
+  scale_color_viridis_d(option = "C", labels = c("1", "s", expression(s^2))) +
+  time_x 
+
+```
+
+---
+
+
+### Parametric estimation
+
+Another example: cubic B-spline basis with 8 degrees of freedom 
+
+```{r splines2}
+bs = splines::bs(u, df = 8, intercept = TRUE)
+
+bdf = 
+  as_tibble(unclass(bs), .name_repair = ~ paste0("B", 1:8)) |>
+  mutate(s = s) |>
+  pivot_longer(-s, names_to = "k", values_to = "B")
+
+ggplot(bdf, aes(s, B, color = k)) +
+  geom_line(linewidth = 1) + time_x +
+  labs(x = "Time of Day", y = expression(B[k](s)), color = NULL) +
+  scale_color_viridis_d(option = "C")
+```
+
+---
+
+
+### Parametric estimation 
+
+Let's plug in the basis expansion to our integral: 
+
+$$ 
+\begin{aligned}
+E(Y_i) &= \beta_0 + \int_S \beta_1(s)X_i(s)\,ds\\
+&= \beta_0 + \sum_{k=1}^K\big[\int_SB_k(s)X_i(s)\,ds\big]\beta_{1k}\\
+&= \beta_0 + \mathbf{C}_i^t\boldsymbol{\beta}_1
+\end{aligned}
+$$
+
+---
+
+### Parametric estimation 
+
+**Key insight**: 
+
+Let $C_{ik} = \int_SB_k(s)X_i(s)ds$, $\mathbf{C}_i = \big[C_{i1}, C_{i2}, \dots, C_{iK}\big]$, and $\boldsymbol{\beta}_1 = (\beta_{11}, \dots, \beta_{1K})^t$ be the vector of basis coefficients. 
+
+---
+
+### Parametric estimation 
+
+**Key insight**: 
+
+Let $C_{ik} = \int_SB_k(s)X_i(s)ds$, $\mathbf{C}_i = \big[C_{i1}, C_{i2}, \dots, C_{iK}\big]$, and $\boldsymbol{\beta}_1 = (\beta_{11}, \dots, \beta_{1K})^t$ be the vector of basis coefficients. 
+
+
+We can carefully construct a matrix $\mathbf{X}$ by row stacking vectors $[1, C_{i1}, \dots, C_{iK}]$; $\boldsymbol{\beta} = [\beta_0, \beta_{11}, \dots, \beta_{1K}]^t$. Then we can find $\boldsymbol{\beta}$ by solving the least squares problem: 
+
+$$
+\min_{\boldsymbol{\beta}} ||\mathbf{y} - \mathbf{X}\boldsymbol{\beta}||^2
+$$
+
+---
+
+
+### Parametric estimation
+
+$C_{ik}$: area under the product of basis function and $X_i(s)$
+
+Quadratic basis: 
+
+```{r c1}
+K    = 3
+Bmat = B      # 1440 x K
+Cmat = X %*% Bmat / 1440               # n x K; Riemann sum with ds = 1/1440
+colnames(Cmat) = paste0("C", 1:K)
+klev = paste0("B", 1:K)
+
+i = which(nh_df$SEQN == "67225")
+
+prod_k = as_tibble(Bmat, .name_repair = ~ klev) |>
+  mutate(s = s, x = X[i, ]) |>
+  pivot_longer(all_of(klev), names_to = "k", values_to = "B") |>
+  mutate(k = factor(k, levels = klev), prod = B * x)
+
+c_lab = tibble(k = factor(klev, levels = klev),
+               lab = sprintf("C[i*%d] == %.1f", 1:K, Cmat[i, ]))
+
+ggplot(prod_k, aes(s)) +
+  geom_line(aes(y = x), color = "grey75") +
+  geom_area(aes(y = prod, fill = k), alpha = .7) +
+  geom_text(data = c_lab, aes(x = 720, y = Inf, label = lab),
+            parse = TRUE, vjust = 1.3, size = 3.5) +
+  facet_wrap(~ k, nrow = 1) +
+  scale_fill_viridis_d(option = "C") +
+  time_x +
+  # scale_x_continuous(breaks = c(0, 720, 1440), labels = c("00:00", "12:00", "24:00")) +
+  labs(x = "Time of Day", y = expression(B[k](s) * X[i](s))) +
+  theme(legend.position = "none")
+
+Xd = cbind(1, Cmat)
+y        = nh_df$bmi
+beta_hat = solve(crossprod(Xd), crossprod(Xd, y))   # same as coef(lm(y ~ Cmat))
+b1       = beta_hat[-1]
+
+wdf = as_tibble(Bmat, .name_repair = ~ klev) |>
+  mutate(s = s) |>
+  pivot_longer(-s, names_to = "k", values_to = "B") |>
+  mutate(k = factor(k, levels = klev), w = B * b1[as.integer(k)])
+
+quad = tibble(s, beta = as.vector(Bmat %*% b1))
+
+quad_plot = 
+  ggplot(wdf, aes(s, w, color = k)) +
+  geom_line(alpha = .9, linewidth = 1) +
+  geom_line(data = tibble(s, beta = as.vector(Bmat %*% b1)),
+            aes(s, beta), inherit.aes = FALSE, linewidth = 1.3) +
+  geom_hline(yintercept = 0, linetype = 2, color = "darkgrey") + time_x +
+  scale_color_viridis_d(option = "C", name = "") +
+  labs(x = "Time of Day", y = expression(hat(beta)[1](s))) +
+  theme(axis.title = element_text(family = "sans"))
+```
+
+----
+
+### Parametric estimation
+
+$C_{ik}$: area under the product of basis function and $X_i(s)$
+
+Cubic B-spline basis: 
+
+
+```{r c2}
+K    = 8
+Bmat = unclass(bs)[, 1:K]              # 1440 x K
+Cmat = X %*% Bmat / 1440               # n x K; Riemann sum with ds = 1/1440
+colnames(Cmat) = paste0("C", 1:K)
+klev = paste0("B", 1:K)
+
+i = which(nh_df$SEQN == "67225")
+
+prod_k = as_tibble(Bmat, .name_repair = ~ klev) |>
+  mutate(s = s, x = X[i, ]) |>
+  pivot_longer(all_of(klev), names_to = "k", values_to = "B") |>
+  mutate(k = factor(k, levels = klev), prod = B * x)
+
+c_lab = tibble(k = factor(klev, levels = klev),
+               lab = sprintf("C[i*%d] == %.1f", 1:K, Cmat[i, ]))
+
+ggplot(prod_k, aes(s)) +
+  geom_line(aes(y = x), color = "grey75") +
+  geom_area(aes(y = prod, fill = k), alpha = .7) +
+  geom_text(data = c_lab, aes(x = 720, y = Inf, label = lab),
+            parse = TRUE, vjust = 1.3, size = 3.5) +
+  facet_wrap(~ k, nrow = 2) +
+  scale_fill_viridis_d(option = "C") +
+  time_x +
+  scale_x_continuous(breaks = c(0, 720, 1440), labels = c("00:00", "12:00", "24:00")) +
+  labs(x = "Time of Day", y = expression(B[k](s) * X[i](s))) +
+  theme(legend.position = "none")
+
+
+Xd = cbind(1, Cmat)
+y        = nh_df$bmi
+beta_hat = solve(crossprod(Xd), crossprod(Xd, y))   # same as coef(lm(y ~ Cmat))
+b1       = beta_hat[-1]
+klev = paste0("B", 1:K)
+
+wdf = as_tibble(Bmat, .name_repair = ~ klev) |>
+  mutate(s = s) |>
+  pivot_longer(-s, names_to = "k", values_to = "B") |>
+  mutate(k = factor(k, levels = klev), w = B * b1[as.integer(k)])
+
+cub = tibble(s, beta = as.vector(Bmat %*% b1))
+cub_plot = 
+  ggplot(wdf, aes(s, w, color = k)) +
+  geom_line(alpha = .9, linewidth = 1) +
+  geom_line(data = tibble(s, beta = as.vector(Bmat %*% b1)),
+            aes(s, beta), inherit.aes = FALSE, linewidth = 1.3) +
+  geom_hline(yintercept = 0, linetype = 2, color = "darkgrey") + time_x +
+  scale_color_viridis_d(option = "C", name = "") +
+  labs(x = "Time of Day", y = expression(hat(beta)[1](s))) +
+  theme(axis.title = element_text(family = "sans"))
+```
+
+---
+
+### Parametric estimation 
+
+Once we estimate $\boldsymbol{\beta}$, we can get $\hat{\beta}_1(s)$ by summing the basis coefficients and basis functions
+
+Quadratic basis:
+
+```{r coef1}
+quad_plot
+```
+
+---
+
+
+### Parametric estimation 
+
+Once we estimate $\boldsymbol{\beta}$, we can get $\hat{\beta}_1(s)$ by summing the basis coefficients and basis functions
+
+Cubic basis: 
+
+```{r coef2}
+cub_plot
+```
+
+---
+
+### So far 
+
+```{r compare}
+sfdf = 
+  sf_coef_df |> tf_unnest(estimate) |> 
+  select(method, estimate_arg, estimate_value) |> 
+  mutate(s = row_number(),
+         beta = estimate_value * 12)
+cub = cub |> 
+  mutate(method = "Cubic B Spline")
+quad = quad |> mutate(method = "Quadratic Spline")
+
+sfdf |> 
+  bind_rows(cub, quad) |> 
+  ggplot(aes(x = s, y = beta, color = method)) +
+  geom_line(linewidth = 1) +
+  time_x +
+  geom_hline(aes(yintercept = 0), color = "darkgrey", linetype = "dashed") +
+  labs(x = "Time of Day", y = "Coefficient", color = "Method") +
+  scale_color_manual(values = c("#FF7F00", "#19B2FF", "#654CFF"))
+```
+
+---
+
+### So far 
+
+How do we pick the right degrees of freedom/wiggliness of our coefficient? 
+
+---
+
+### So far 
+
+How do we pick the right degrees of freedom/wiggliness of our coefficient? 
+
+**In practice**: use rich spline basis and penalize based on the 2nd derivative (wiggliness) 
+
+---
+
+### So far 
+
+How do we pick the right degrees of freedom/wiggliness of our coefficient? 
+
+**In practice**: use rich spline basis and penalize based on the 2nd derivative (wiggliness) 
+
+We have standard statistical software to fit these models! 
+
+<div style="font-size: 125%;">
+```{r}
+#| echo: true
+#| eval: false 
+
+pfr_fit = 
+  pfr(bmi ~ lf(mims_mat, argvals = seq(1, 1440, 1),
+               bs = "ps", k = 30) + age + gender, 
+              method = "REML", data = nh_df)
+```
+
+</div> 
+
+---
+
+### So far 
+
+How do we pick the right degrees of freedom/wiggliness of our coefficient? 
+
+**In practice**: use rich spline basis and penalize based on the 2nd derivative (wiggliness) 
+
+We have standard statistical software to fit these models! 
+
+<div style="font-size: 125%;">
+```{r}
+#| echo: true
+#| eval: false 
+
+pfr_fit = 
+  pfr(bmi ~ lf(mims_mat, argvals = seq(1, 1440, 1),
+               bs = "ps", k = 30) + age + gender, 
+              method = "REML", data = nh_df)
+```
+
+</div> 
+
+Come talk to me if you want to learn more! 
+
