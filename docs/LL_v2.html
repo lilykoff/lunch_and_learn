@@ -1280,7 +1280,10 @@ Note:               *p&lt;0.1; **p&lt;0.05; ***p&lt;0.01</code></pre>
 
 <h3 id="regression-in-each-bin">Regression in each bin?</h3>
 <p><span class="math display">\[
-\text{BMI}_i = \beta_0 + \beta_1\text{MIMS bin1}_i + \beta_2\text{MIMS bin2}_i + \dots + \beta_{12}\text{MIMS bin12}_i + \beta_{13}\text{age}_i + \beta_{14}\text{gender}_i + \epsilon_i
+\begin{align}
+\text{BMI}_i=&amp; \beta_0 + \beta_1\text{MIMS bin1}_i + \beta_2\text{MIMS bin2}_i + \dots + \beta_{12}\text{MIMS bin12}_i +  \\
+&amp;\beta_{13}\text{age}_i + \beta_{14}\text{gender}_i + \epsilon_i
+\end{align}
 \]</span></p>
 <div style="font-size: 125%;">
 <div class="cell">
@@ -1470,7 +1473,10 @@ Y_i = \beta_0 + \int_S\beta_1(s) X_i(s)ds + \epsilon_i
 <p>Need to minimize:</p>
 <p><span class="math display">\[
 \min_{\beta_0, \beta_1(s)}\sum_{i=1}^n\Big\{Y_i - \beta_0 - \int_S\beta_1(s)X_i(s)\,ds\Big\}^2
-\]</span> How can we do this? —</p>
+\]</span> How can we do this?</p>
+</section>
+<section class="slide level2">
+
 <h3 id="parametric-estimation">Parametric estimation</h3>
 <p><strong>Basic idea</strong>: expand coefficient using a basis expansion, which allows us to reframe problem as one of multiple linear regression</p>
 <p>This involves some math</p>

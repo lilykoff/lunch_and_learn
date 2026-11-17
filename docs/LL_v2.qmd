@@ -454,7 +454,10 @@ p_bin_raw
 ### Regression in each bin?  
 
 $$
-\text{BMI}_i = \beta_0 + \beta_1\text{MIMS bin1}_i + \beta_2\text{MIMS bin2}_i + \dots + \beta_{12}\text{MIMS bin12}_i + \beta_{13}\text{age}_i + \beta_{14}\text{gender}_i + \epsilon_i
+\begin{align}
+\text{BMI}_i=& \beta_0 + \beta_1\text{MIMS bin1}_i + \beta_2\text{MIMS bin2}_i + \dots + \beta_{12}\text{MIMS bin12}_i +  \\
+&\beta_{13}\text{age}_i + \beta_{14}\text{gender}_i + \epsilon_i
+\end{align}
 $$
 
 
@@ -976,6 +979,7 @@ $$
 \min_{\beta_0, \beta_1(s)}\sum_{i=1}^n\Big\{Y_i - \beta_0 - \int_S\beta_1(s)X_i(s)\,ds\Big\}^2
 $$
 How can we do this? 
+
 ---
 
 ### Parametric estimation 
