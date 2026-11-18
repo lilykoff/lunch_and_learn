@@ -264,6 +264,7 @@ df_tf |>
   ggplot(aes(y = activity)) +
   geom_spaghetti(alpha = 1) +
   scale_color_viridis(option = "C") +
+  geom_hline(aes(yintercept = 65), alpha = 0) +
   # scale_y_continuous(limits = c(0, 60)) +
   scale_x_continuous(breaks = seq(0, 24, 6),
                      labels = c("00:00", "06:00", "12:00", "18:00", "24:00")) +
@@ -292,7 +293,9 @@ p_raw =
   scale_x_continuous(breaks = seq(0, 24, 6),
                      labels = c("00:00", "06:00", "12:00", "18:00", "24:00")) +
   labs(x = "Time of Day", y = "Physical Activity (MIMS)", color = "BMI",
-       title = "Physical Activity for 100 NHANES Participants")
+       title = "Physical Activity for 100 NHANES Participants") +
+    geom_hline(aes(yintercept = 65), alpha = 0) 
+
 
 p_raw
 ```
@@ -337,10 +340,10 @@ mims_mean |>
 
 
 
-### What about a regression? 
+### Take the mean? 
 
 $$ 
-\text{BMI}_i = \beta_0 + \beta_1\text{MIMS}_i + \beta_2\text{age}_i + \beta_3\text{gender}_i + \epsilon_i
+\text{BMI}_i = \beta_0 + \beta_1\overline{\text{MIMS}}_i + \beta_2\text{age}_i + \beta_3\text{gender}_i + \epsilon_i
 $$
 <div style="font-size: 125%;">
 
@@ -1100,7 +1103,8 @@ $$
 
 ### Parametric estimation
 
-$C_{ik}$: area under the product of basis function and $X_i(s)$
+$C_{ik} = \int_S B_k(s)X_i(s)ds$: area under the product of basis function and $X_i(s)$
+
 
 Quadratic basis: 
 
@@ -1121,11 +1125,20 @@ prod_k = as_tibble(Bmat, .name_repair = ~ klev) |>
 c_lab = tibble(k = factor(klev, levels = klev),
                lab = sprintf("C[i*%d] == %.1f", 1:K, Cmat[i, ]))
 
+c_lab = tibble(
+  k = factor(klev, levels = klev),
+  lab = c(
+    "C[i1] == integral(B[1](s) * X[i](s) * ds, S, '') ~ '=' ~ integral(1 ~ X[i](s) * ds, S, '')",
+    "C[i2] == integral(B[2](s) * X[i](s) * ds, S, '') ~ '=' ~ integral(s ~ X[i](s) * ds, S, '')",
+    "C[i3] == integral(B[3](s) * X[i](s) * ds, S, '') ~ '=' ~ integral(s^2 ~ X[i](s) * ds, S, '')"
+  )
+)
+
 ggplot(prod_k, aes(s)) +
   geom_line(aes(y = x), color = "grey75") +
   geom_area(aes(y = prod, fill = k), alpha = .7) +
   geom_text(data = c_lab, aes(x = 720, y = Inf, label = lab),
-            parse = TRUE, vjust = 1.3, size = 3.5) +
+            parse = TRUE, vjust = 1.3, size = 3.5, family = "sans") +
   facet_wrap(~ k, nrow = 1) +
   scale_fill_viridis_d(option = "C") +
   time_x +
@@ -1154,6 +1167,35 @@ quad_plot =
   scale_color_viridis_d(option = "C", name = "") +
   labs(x = "Time of Day", y = expression(hat(beta)[1](s))) +
   theme(axis.title = element_text(family = "sans"))
+
+lab_df = wdf |>
+  group_by(k) |>
+  slice_max(abs(w), n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  mutate(lab = sprintf("B[%d](s)*beta[1*%d]", 1:K, 1:K))
+
+# label for the black line, placed where |beta(s)| is largest
+beta_lab = quad |>
+  filter(s == 240) |> 
+  # slice_max(abs(beta), n = 1, with_ties = FALSE) |>
+  mutate(lab = "beta[1](s)") 
+
+quad_plot =
+  ggplot(wdf, aes(s, w, color = k)) +
+  geom_line(alpha = .9, linewidth = 1) +
+  geom_line(data = quad, aes(s, beta), inherit.aes = FALSE, linewidth = 1.3) +
+  geom_hline(yintercept = 0, linetype = 2, color = "darkgrey") +
+  geom_label_repel(data = lab_df, aes(s, w, label = lab, color = k),
+                  parse = TRUE, size = 3.5, show.legend = FALSE,
+                  min.segment.length = 0, seed = 1) +
+  geom_label_repel(data = beta_lab, aes(s, beta, label = lab),
+                  inherit.aes = FALSE, parse = TRUE, color = "black",
+                  size = 4, min.segment.length = 0, seed = 1) +
+  time_x +
+  scale_color_viridis_d(option = "C") +
+  labs(x = "Time of Day", y = "") +
+  theme(legend.position = "none",
+        axis.title = element_text(family = "sans"))
 ```
 
 ----
@@ -1216,6 +1258,37 @@ cub_plot =
   scale_color_viridis_d(option = "C", name = "") +
   labs(x = "Time of Day", y = expression(hat(beta)[1](s))) +
   theme(axis.title = element_text(family = "sans"))
+
+
+# one label per colored line, placed at the point where |B_k(s) * beta_k| is largest
+lab_df = wdf |>
+  group_by(k) |>
+  slice_max(abs(w), n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  mutate(lab = sprintf("B[%d](s)*beta[1*%d]", 1:K, 1:K))
+
+# label for the black line, placed where |beta(s)| is largest
+beta_lab = cub |>
+  slice_max(abs(beta), n = 1, with_ties = FALSE) |>
+  mutate(lab = "beta[1](s)")
+
+cub_plot =
+  ggplot(wdf, aes(s, w, color = k)) +
+  geom_line(alpha = .9, linewidth = 1) +
+  geom_line(data = cub, aes(s, beta), inherit.aes = FALSE, linewidth = 1.3) +
+  geom_hline(yintercept = 0, linetype = 2, color = "darkgrey") +
+  geom_label_repel(data = lab_df, aes(s, w, label = lab, color = k),
+                  parse = TRUE, size = 3.5, show.legend = FALSE,
+                  min.segment.length = 0, seed = 1) +
+  geom_label_repel(data = beta_lab, aes(s, beta, label = lab),
+                  inherit.aes = FALSE, parse = TRUE, color = "black",
+                  size = 4, min.segment.length = 0, seed = 1) +
+  time_x +
+  scale_color_viridis_d(option = "C") +
+  labs(x = "Time of Day", y = "") +
+  theme(legend.position = "none",
+        axis.title = element_text(family = "sans"))
+
 ```
 
 ---
