@@ -458,8 +458,13 @@ p_bin_raw
 
 $$
 \begin{align}
-\text{BMI}_i=& \beta_0 + \beta_1\text{MIMS bin1}_i + \beta_2\text{MIMS bin2}_i + \dots + \beta_{12}\text{MIMS bin12}_i +  \\
-&\beta_{13}\text{age}_i + \beta_{14}\text{gender}_i + \epsilon_i
+\text{BMI}_i=& \beta_0 + \beta_1\text{MIMS bin1}_i +
+\beta_{2}\text{age}_i + \beta_{3}\text{gender}_i + \epsilon_i \\
+\text{BMI}_i=& \beta_0 + \beta_1\text{MIMS bin2}_i +
+\beta_{2}\text{age}_i + \beta_{3}\text{gender}_i + \epsilon_i \\
+... &\\
+\text{BMI}_i=& \beta_0 + \beta_1\text{MIMS bin12}_i +
+\beta_{2}\text{age}_i + \beta_{3}\text{gender}_i + \epsilon_i \\
 \end{align}
 $$
 
